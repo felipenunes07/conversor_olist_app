@@ -3,7 +3,11 @@
     "builds": [
         {
             "src": "src/main.py",
-            "use": "@vercel/python"
+            "use": "@vercel/python",
+            "config": {
+                "runtime": "python3.12",
+                "maxLambdaSize": "15mb"
+            }
         },
         {
             "src": "src/static/**",
@@ -21,6 +25,7 @@
         }
     ],
     "env": {
-        "PYTHONPATH": "."
+        "PYTHONPATH": ".",
+        "FLASK_ENV": "production"
     }
 } 
