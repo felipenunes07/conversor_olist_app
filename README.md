@@ -1,97 +1,81 @@
-# Conversor de Orçamentos para Olist
+# Conversor Olist
 
-Uma aplicação web desenvolvida em Flask para converter arquivos de orçamento para o formato Olist.
-
-## Funcionalidades
-
-- Interface web amigável para upload de arquivos
-- Conversão de orçamentos para o formato Olist
-- Mapeamento de produtos e clientes
-- Download do arquivo convertido em formato Excel
-- Suporte a múltiplos clientes
-
-## Requisitos
-
-- Python 3.x
-- Flask 3.1.0
-- Pandas
-- Outras dependências listadas em `requirements.txt`
-
-## Instalação
-
-1. Clone o repositório:
-```bash
-git clone https://github.com/felipenunes07/conversor_olist_app.git
-cd conversor_olist_app
-```
-
-2. Crie um ambiente virtual e ative-o:
-```bash
-python -m venv venv
-# No Windows:
-.\venv\Scripts\activate
-# No Linux/Mac:
-source venv/bin/activate
-```
-
-3. Instale as dependências:
-```bash
-pip install -r requirements.txt
-```
-
-## Configuração
-
-1. Certifique-se de que os seguintes arquivos estão presentes no diretório `src`:
-   - `clientes.xlsx` - Arquivo de mapeamento de clientes
-   - `PLanilha mapeamento Orçamento Olist.xlsx` - Arquivo de mapeamento de produtos
-   - `formato Olist(SAIDA).xlsx` - Modelo do arquivo de saída
-
-2. Crie o diretório de uploads (se não existir):
-```bash
-mkdir src/uploads
-```
-
-## Uso
-
-1. Inicie a aplicação:
-```bash
-cd src
-python main.py
-```
-
-2. Acesse a interface web em: http://localhost:5000
-
-3. Na interface web:
-   - Faça upload dos arquivos de mapeamento necessários
-   - Selecione um cliente
-   - Faça upload do arquivo de orçamento
-   - Clique em "Processar" para converter
-   - Faça o download do arquivo convertido
+Aplicação para converter orçamentos para o formato Olist.
 
 ## Estrutura do Projeto
 
 ```
 conversor_olist_app/
-├── src/
-│   ├── static/
-│   │   ├── css/
-│   │   ├── js/
-│   │   └── index.html
-│   ├── uploads/
-│   ├── main.py
-│   ├── conversor_olist.py
-│   └── [arquivos de mapeamento]
-├── venv/
 ├── requirements.txt
-└── README.md
+├── render.yaml
+└── src/
+    ├── main.py
+    ├── conversor_olist.py
+    ├── storage.py
+    ├── static/
+    │   ├── index.html
+    │   └── error.html
+    └── data/
+        ├── clientes.xlsx
+        ├── PLanilha mapeamento Orçamento Olist.xlsx
+        └── formato Olist(SAIDA).xlsx
 ```
 
-## Desenvolvimento
+## Arquivos Necessários
 
-- O modo debug está ativado por padrão para desenvolvimento
-- Os logs são salvos em um arquivo temporário
-- O diretório `uploads` é usado para arquivos temporários durante o processamento
+Os seguintes arquivos Excel são necessários e devem estar na pasta `src/data/`:
+
+1. `clientes.xlsx` - Lista de clientes
+2. `PLanilha mapeamento Orçamento Olist.xlsx` - Mapeamento de produtos
+3. `formato Olist(SAIDA).xlsx` - Modelo de saída
+
+## Configuração Local
+
+1. Clone o repositório:
+```bash
+git clone <seu-repositorio>
+cd conversor_olist_app
+```
+
+2. Crie um ambiente virtual e instale as dependências:
+```bash
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+venv\Scripts\activate     # Windows
+pip install -r requirements.txt
+```
+
+3. Coloque os arquivos Excel necessários na pasta `src/data/`
+
+4. Execute a aplicação:
+```bash
+cd src
+python main.py
+```
+
+## Deploy no Render
+
+1. Faça fork deste repositório no GitHub
+
+2. No Render:
+   - Crie uma nova Web Service
+   - Conecte ao seu repositório GitHub
+   - Selecione o branch principal
+   - O arquivo `render.yaml` configurará automaticamente o deploy
+
+3. Após o deploy:
+   - Faça upload dos arquivos Excel necessários através da interface da aplicação
+   - Verifique se todos os arquivos foram carregados corretamente
+
+## Variáveis de Ambiente
+
+- `PYTHONPATH`: src
+- `FLASK_ENV`: production
+- `FLASK_DEBUG`: 0
 
 ## Suporte
 
-Para reportar problemas ou sugerir melhorias, por favor abra uma issue no GitHub. 
+Em caso de problemas:
+1. Verifique se todos os arquivos Excel necessários estão presentes
+2. Confira os logs da aplicação
+3. Certifique-se de que os arquivos Excel estão no formato correto 

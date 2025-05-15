@@ -20,14 +20,15 @@ app = Flask(__name__, static_folder='static', template_folder='static')
 
 # Define o caminho base para os arquivos de dados que estão dentro de 'src'
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, 'data')
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads') # Para uploads temporários de orçamentos
 MAPEAMENTO_PRODUTOS_FILENAME = "PLanilha mapeamento Orçamento Olist.xlsx"
 CLIENTES_FILENAME = "clientes.xlsx"
 MODELO_SAIDA_OLIST_FILENAME = "formato Olist(SAIDA).xlsx"
 
-MAPEAMENTO_PRODUTOS_PATH = os.path.join(BASE_DIR, MAPEAMENTO_PRODUTOS_FILENAME)
-CLIENTES_PATH = os.path.join(BASE_DIR, CLIENTES_FILENAME)
-MODELO_SAIDA_OLIST_PATH = os.path.join(BASE_DIR, MODELO_SAIDA_OLIST_FILENAME)
+MAPEAMENTO_PRODUTOS_PATH = os.path.join(DATA_DIR, MAPEAMENTO_PRODUTOS_FILENAME)
+CLIENTES_PATH = os.path.join(DATA_DIR, CLIENTES_FILENAME)
+MODELO_SAIDA_OLIST_PATH = os.path.join(DATA_DIR, MODELO_SAIDA_OLIST_FILENAME)
 
 # Criar diretório de uploads se não existir
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -39,9 +40,30 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def check_required_files():
+    """Check if all required files exist and are readable."""
+    required_files = {
+        'clientes': CLIENTES_PATH,
+        'mapeamento': MAPEAMENTO_PRODUTOS_PATH,
+        'modelo': MODELO_SAIDA_OLIST_PATH
+    }
+    
+    missing_files = []
+    for file_type, path in required_files.items():
+        if not os.path.exists(path):
+            missing_files.append(file_type)
+            app.logger.error(f"Required file missing: {path}")
+    
+    return missing_files
+
 @app.route('/')
 def index():
     try:
+        # Check for required files on startup
+        missing_files = check_required_files()
+        if missing_files:
+            return render_template('error.html', 
+                                error=f"Missing required files: {', '.join(missing_files)}. Please upload them first.")
         return render_template('index.html')
     except Exception as e:
         app.logger.error(f"Error rendering index: {str(e)}\n{traceback.format_exc()}")
@@ -88,6 +110,14 @@ def remove_file_with_retry(file_path, max_retries=3, delay=1):
 @app.route('/processar', methods=['POST'])
 def processar_arquivo():
     try:
+        # Check required files first
+        missing_files = check_required_files()
+        if missing_files:
+            return jsonify({
+                'error': 'Missing required files',
+                'details': {'missing': missing_files}
+            }), 500
+
         if 'arquivo_excel' not in request.files:
             return jsonify({'error': 'No Excel file uploaded'}), 400
         
@@ -106,25 +136,6 @@ def processar_arquivo():
         # Create in-memory file
         input_excel = io.BytesIO(file.read())
         
-        # Check required files
-        required_files = {
-            'clientes': CLIENTES_PATH,
-            'mapeamento': MAPEAMENTO_PRODUTOS_PATH,
-            'modelo': MODELO_SAIDA_OLIST_PATH
-        }
-        
-        missing_files = []
-        for file_type, path in required_files.items():
-            if not os.path.exists(path):
-                missing_files.append(file_type)
-        
-        if missing_files:
-            return jsonify({
-                'error': 'Missing required files',
-                'details': {'missing': missing_files}
-            }), 500
-
-        # Process the file
         try:
             df_convertido = converter_orcamento_para_olist(
                 input_excel,

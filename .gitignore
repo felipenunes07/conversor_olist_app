@@ -2,14 +2,45 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Application specific
+*.log
+uploads/
+!src/data/
+!src/data/*.xlsx
 
 # Virtual environment
-venv/
 .venv/
-env/
 
 # Distribution / packaging
-.Python
 build/
 develop-eggs/
 dist/

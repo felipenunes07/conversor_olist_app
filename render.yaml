@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: conversor-olist
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: cd src && gunicorn main:app --bind 0.0.0.0:$PORT --workers=4 --timeout=120
+    envVars:
+      - key: PYTHONPATH
+        value: src
+      - key: FLASK_ENV
+        value: production
+      - key: FLASK_DEBUG
+        value: "0"
+    healthCheckPath: /
+    autoDeploy: true 
