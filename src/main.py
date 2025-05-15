@@ -14,7 +14,7 @@ import io # Para enviar o arquivo em memória
 from werkzeug.utils import secure_filename # Para nomes de arquivo seguros
 
 # Importa a função de conversão do outro arquivo .py
-from src.conversor_olist import converter_orcamento_para_olist
+from conversor_olist import converter_orcamento_para_olist
 
 app = Flask(__name__, static_folder='static', template_folder='static')
 
@@ -41,15 +41,19 @@ def allowed_file(filename):
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    try:
+        return render_template('index.html')
+    except Exception as e:
+        app.logger.error(f"Error rendering index: {str(e)}\n{traceback.format_exc()}")
+        return jsonify({'error': 'Error loading application'}), 500
 
 @app.route('/clientes', methods=['GET'])
 def get_clientes():
     try:
         if not os.path.exists(CLIENTES_PATH):
-            app.logger.error(f"Arquivo de clientes não encontrado em: {CLIENTES_PATH}")
+            app.logger.error(f"Client file not found at: {CLIENTES_PATH}")
             return jsonify({
-                'error': 'Arquivo de clientes não encontrado. Faça o upload na seção de mapeamento.',
+                'error': 'Client file not found',
                 'details': {'path': CLIENTES_PATH}
             }), 404
         
@@ -60,9 +64,9 @@ def get_clientes():
             clientes_list = df_clientes[['ID', 'Nome']].to_dict(orient='records')
             return jsonify({'clientes': clientes_list})
         else:
-            return jsonify({'error': 'Estrutura inválida na planilha de clientes.'}), 500
+            return jsonify({'error': 'Invalid client file structure'}), 500
     except Exception as e:
-        app.logger.error(f"Erro ao carregar clientes: {str(e)}\n{traceback.format_exc()}")
+        app.logger.error(f"Error loading clients: {str(e)}\n{traceback.format_exc()}")
         return jsonify({'error': str(e), 'details': traceback.format_exc()}), 500
 
 def remove_file_with_retry(file_path, max_retries=3, delay=1):
@@ -83,84 +87,83 @@ def remove_file_with_retry(file_path, max_retries=3, delay=1):
 
 @app.route('/processar', methods=['POST'])
 def processar_arquivo():
-    if 'arquivo_excel' not in request.files:
-        return jsonify({'error': 'Nenhum arquivo Excel de orçamento enviado.'}), 400
-    
-    file = request.files['arquivo_excel']
-    cliente_id_str = request.form.get('cliente_id')
-
-    if not cliente_id_str:
-        return jsonify({'error': 'ID do cliente não fornecido.'}), 400
-
-    if file.filename == '':
-        return jsonify({'error': 'Nome de arquivo de orçamento vazio.'}), 400
-
-    if not file or not allowed_file(file.filename):
-        return jsonify({'error': 'Tipo de arquivo de orçamento inválido. Use .xlsx'}), 400
-
     try:
-        # Criar arquivo temporário em memória
+        if 'arquivo_excel' not in request.files:
+            return jsonify({'error': 'No Excel file uploaded'}), 400
+        
+        file = request.files['arquivo_excel']
+        cliente_id_str = request.form.get('cliente_id')
+
+        if not cliente_id_str:
+            return jsonify({'error': 'No client ID provided'}), 400
+
+        if file.filename == '':
+            return jsonify({'error': 'Empty filename'}), 400
+
+        if not file or not allowed_file(file.filename):
+            return jsonify({'error': 'Invalid file type. Use .xlsx'}), 400
+
+        # Create in-memory file
         input_excel = io.BytesIO(file.read())
         
-        # Verificar arquivos de mapeamento
+        # Check required files
         required_files = {
             'clientes': CLIENTES_PATH,
             'mapeamento': MAPEAMENTO_PRODUTOS_PATH,
             'modelo': MODELO_SAIDA_OLIST_PATH
         }
         
+        missing_files = []
         for file_type, path in required_files.items():
             if not os.path.exists(path):
-                return jsonify({
-                    'error': f'Arquivo de {file_type} não encontrado.',
-                    'details': {'path': path}
-                }), 500
-
-        # Verificar estrutura do arquivo de clientes
-        df_clientes_check = pd.read_excel(CLIENTES_PATH, sheet_name='CLIENTES')
-        if df_clientes_check.empty:
-            return jsonify({'error': 'Arquivo de clientes está vazio.'}), 500
+                missing_files.append(file_type)
         
-        if 'ID' not in df_clientes_check.columns:
-            return jsonify({'error': 'Coluna ID não encontrada no arquivo de clientes.'}), 500
+        if missing_files:
+            return jsonify({
+                'error': 'Missing required files',
+                'details': {'missing': missing_files}
+            }), 500
 
-        # Converter ID do cliente
+        # Process the file
         try:
-            cliente_id_convertido = int(cliente_id_str) if pd.api.types.is_numeric_dtype(df_clientes_check['ID']) else str(cliente_id_str)
-        except ValueError:
-            return jsonify({'error': 'ID do cliente inválido.'}), 400
+            df_convertido = converter_orcamento_para_olist(
+                input_excel,
+                MAPEAMENTO_PRODUTOS_PATH,
+                CLIENTES_PATH,
+                cliente_id_str,
+                MODELO_SAIDA_OLIST_PATH
+            )
 
-        app.logger.info(f"Iniciando conversão para cliente ID: {cliente_id_convertido}")
-        
-        # Processar arquivo
-        df_convertido = converter_orcamento_para_olist(
-            input_excel,
-            MAPEAMENTO_PRODUTOS_PATH,
-            CLIENTES_PATH,
-            cliente_id_convertido,
-            MODELO_SAIDA_OLIST_PATH
-        )
+            if df_convertido.empty:
+                return jsonify({'error': 'No data processed'}), 500
 
-        if df_convertido.empty:
-            return jsonify({'error': 'Nenhum dado foi processado.'}), 500
+            # Create output file in memory
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df_convertido.to_excel(writer, index=False, sheet_name='Sheet1')
+            output.seek(0)
+            
+            return send_file(
+                output,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                as_attachment=True,
+                download_name='orcamento_convertido_olist.xlsx'
+            )
 
-        # Criar arquivo de saída em memória
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df_convertido.to_excel(writer, index=False, sheet_name='Sheet1')
-        output.seek(0)
-        
-        return send_file(
-            output,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            as_attachment=True,
-            download_name='orcamento_convertido_olist.xlsx'
-        )
+        except Exception as e:
+            app.logger.error(f"Error processing file: {str(e)}\n{traceback.format_exc()}")
+            return jsonify({
+                'error': 'Error processing file',
+                'details': {
+                    'message': str(e),
+                    'traceback': traceback.format_exc()
+                }
+            }), 500
 
     except Exception as e:
-        app.logger.error(f"Erro no processamento: {str(e)}\n{traceback.format_exc()}")
+        app.logger.error(f"Unexpected error: {str(e)}\n{traceback.format_exc()}")
         return jsonify({
-            'error': 'Erro no processamento do arquivo.',
+            'error': 'Unexpected error',
             'details': {
                 'message': str(e),
                 'traceback': traceback.format_exc()
@@ -169,45 +172,44 @@ def processar_arquivo():
 
 @app.route('/upload_mapeamento', methods=['POST'])
 def upload_mapeamento():
-    if 'file' not in request.files:
-        return jsonify({'error': 'Nenhum arquivo enviado.'}), 400
-        
-    file_type = request.form.get('file_type')
-    if not file_type:
-        return jsonify({'error': 'Tipo de arquivo de mapeamento não especificado.'}), 400
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file uploaded'}), 400
+            
+        file_type = request.form.get('file_type')
+        if not file_type:
+            return jsonify({'error': 'No mapping file type specified'}), 400
 
-    file = request.files['file']
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'Empty filename'}), 400
 
-    if file.filename == '':
-        return jsonify({'error': 'Nome de arquivo vazio.'}), 400
-
-    if file and allowed_file(file.filename):
-        # Determinar o nome do arquivo de destino com base no file_type
-        if file_type == 'clientes':
-            target_filename = CLIENTES_FILENAME
-            save_path = CLIENTES_PATH
-        elif file_type == 'produtos':
-            target_filename = MAPEAMENTO_PRODUTOS_FILENAME
-            save_path = MAPEAMENTO_PRODUTOS_PATH
+        if file and allowed_file(file.filename):
+            if file_type == 'clientes':
+                save_path = CLIENTES_PATH
+            elif file_type == 'produtos':
+                save_path = MAPEAMENTO_PRODUTOS_PATH
+            else:
+                return jsonify({'error': 'Invalid mapping file type'}), 400
+            
+            try:
+                os.makedirs(os.path.dirname(save_path), exist_ok=True)
+                file.save(save_path)
+                return jsonify({'message': f'File updated successfully'})
+            except Exception as e:
+                app.logger.error(f"Error saving mapping file: {str(e)}\n{traceback.format_exc()}")
+                return jsonify({'error': f'Error saving file: {str(e)}'}), 500
         else:
-            return jsonify({'error': 'Tipo de arquivo de mapeamento inválido.'}), 400
-        
-        try:
-            # Salva o arquivo diretamente no local correto em 'src'
-            file.save(save_path)
-            app.logger.info(f"Arquivo de mapeamento '{target_filename}' atualizado com sucesso em '{save_path}'.")
-            return jsonify({'message': f'Arquivo {target_filename} atualizado com sucesso!'})
-        except Exception as e:
-            app.logger.error(f"Erro ao salvar o arquivo de mapeamento '{target_filename}': {str(e)}\n{traceback.format_exc()}")
-            return jsonify({'error': f'Erro ao salvar o arquivo {target_filename}: {str(e)}'}), 500
-    else:
-        return jsonify({'error': 'Tipo de arquivo inválido. Use .xlsx'}), 400
+            return jsonify({'error': 'Invalid file type. Use .xlsx'}), 400
+    except Exception as e:
+        app.logger.error(f"Error in upload_mapeamento: {str(e)}\n{traceback.format_exc()}")
+        return jsonify({'error': str(e)}), 500
 
 @app.errorhandler(500)
 def internal_error(error):
-    app.logger.error(f"Erro interno do servidor: {str(error)}\n{traceback.format_exc()}")
+    app.logger.error(f"Internal server error: {str(error)}\n{traceback.format_exc()}")
     return jsonify({
-        'error': 'Erro interno do servidor',
+        'error': 'Internal server error',
         'details': {
             'message': str(error),
             'traceback': traceback.format_exc()
@@ -217,7 +219,7 @@ def internal_error(error):
 @app.errorhandler(404)
 def not_found_error(error):
     return jsonify({
-        'error': 'Recurso não encontrado',
+        'error': 'Resource not found',
         'details': {'message': str(error)}
     }), 404
 

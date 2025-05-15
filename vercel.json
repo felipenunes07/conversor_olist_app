@@ -5,7 +5,7 @@
             "src": "src/main.py",
             "use": "@vercel/python",
             "config": {
-                "runtime": "python3.12",
+                "runtime": "python3.9",
                 "maxLambdaSize": "15mb"
             }
         },
@@ -25,7 +25,8 @@
         }
     ],
     "env": {
-        "PYTHONPATH": ".",
-        "FLASK_ENV": "production"
+        "PYTHONPATH": "src",
+        "FLASK_ENV": "production",
+        "FLASK_DEBUG": "0"
     }
 } 
