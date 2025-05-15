@@ -4,12 +4,23 @@
         {
             "src": "src/main.py",
             "use": "@vercel/python"
+        },
+        {
+            "src": "src/static/**",
+            "use": "@vercel/static"
         }
     ],
     "routes": [
         {
+            "src": "/static/(.*)",
+            "dest": "/src/static/$1"
+        },
+        {
             "src": "/(.*)",
             "dest": "src/main.py"
         }
-    ]
+    ],
+    "env": {
+        "PYTHONPATH": "."
+    }
 } 

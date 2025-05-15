@@ -3,6 +3,8 @@ import os
 import traceback # Para log detalhado de exceções
 import time
 import contextlib
+from pathlib import Path
+import tempfile
 # Adiciona o diretório pai de 'src' ao sys.path para permitir importações como 'from src.conversor_olist import ...'
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -27,8 +29,8 @@ MAPEAMENTO_PRODUTOS_PATH = os.path.join(BASE_DIR, MAPEAMENTO_PRODUTOS_FILENAME)
 CLIENTES_PATH = os.path.join(BASE_DIR, CLIENTES_FILENAME)
 MODELO_SAIDA_OLIST_PATH = os.path.join(BASE_DIR, MODELO_SAIDA_OLIST_FILENAME)
 
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+# Criar diretório de uploads se não existir
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 ALLOWED_EXTENSIONS = {'xlsx'}
@@ -46,9 +48,10 @@ def get_clientes():
     try:
         if not os.path.exists(CLIENTES_PATH):
             app.logger.error(f"Arquivo de clientes não encontrado em: {CLIENTES_PATH}")
-            # Tenta criar um arquivo vazio se não existir para não quebrar a interface inicial
-            # Ou retorna um erro mais amigável para o usuário sobre a necessidade de upload
-            return jsonify({'error': 'Arquivo de clientes (clientes.xlsx) não encontrado no servidor. Por favor, faça o upload do arquivo de mapeamento de clientes.'}), 404
+            return jsonify({
+                'error': 'Arquivo de clientes não encontrado. Faça o upload na seção de mapeamento.',
+                'details': {'path': CLIENTES_PATH}
+            }), 404
         
         df_clientes = pd.read_excel(CLIENTES_PATH, sheet_name='CLIENTES')
         if 'ID' in df_clientes.columns and 'Nome' in df_clientes.columns:
@@ -57,13 +60,10 @@ def get_clientes():
             clientes_list = df_clientes[['ID', 'Nome']].to_dict(orient='records')
             return jsonify({'clientes': clientes_list})
         else:
-            return jsonify({'error': 'Colunas ID ou Nome não encontradas na planilha de clientes.'}), 500
-    except FileNotFoundError:
-        app.logger.error(f"Arquivo de clientes não encontrado em: {CLIENTES_PATH}")
-        return jsonify({'error': 'Arquivo de clientes não encontrado. Faça o upload na seção de mapeamento.'}), 404
+            return jsonify({'error': 'Estrutura inválida na planilha de clientes.'}), 500
     except Exception as e:
         app.logger.error(f"Erro ao carregar clientes: {str(e)}\n{traceback.format_exc()}")
-        return jsonify({'error': f'Erro interno ao carregar clientes: {str(e)}'}), 500
+        return jsonify({'error': str(e), 'details': traceback.format_exc()}), 500
 
 def remove_file_with_retry(file_path, max_retries=3, delay=1):
     """Remove um arquivo com tentativas múltiplas caso esteja em uso."""
@@ -83,120 +83,98 @@ def remove_file_with_retry(file_path, max_retries=3, delay=1):
 
 @app.route('/processar', methods=['POST'])
 def processar_arquivo():
-    temp_orcamento_path = None
+    if 'arquivo_excel' not in request.files:
+        return jsonify({'error': 'Nenhum arquivo Excel de orçamento enviado.'}), 400
+    
+    file = request.files['arquivo_excel']
+    cliente_id_str = request.form.get('cliente_id')
+
+    if not cliente_id_str:
+        return jsonify({'error': 'ID do cliente não fornecido.'}), 400
+
+    if file.filename == '':
+        return jsonify({'error': 'Nome de arquivo de orçamento vazio.'}), 400
+
+    if not file or not allowed_file(file.filename):
+        return jsonify({'error': 'Tipo de arquivo de orçamento inválido. Use .xlsx'}), 400
+
     try:
-        if 'arquivo_excel' not in request.files:
-            return jsonify({'error': 'Nenhum arquivo Excel de orçamento enviado.'}), 400
+        # Criar arquivo temporário em memória
+        input_excel = io.BytesIO(file.read())
         
-        file = request.files['arquivo_excel']
-        cliente_id_str = request.form.get('cliente_id')
-
-        if not cliente_id_str:
-            return jsonify({'error': 'ID do cliente não fornecido.'}), 400
-
-        if file.filename == '':
-            return jsonify({'error': 'Nome de arquivo de orçamento vazio.'}), 400
-
-        if not file or not allowed_file(file.filename):
-            return jsonify({'error': 'Tipo de arquivo de orçamento inválido. Use .xlsx'}), 400
-
-        filename = secure_filename(file.filename)
-        temp_orcamento_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        # Verificar arquivos de mapeamento
+        required_files = {
+            'clientes': CLIENTES_PATH,
+            'mapeamento': MAPEAMENTO_PRODUTOS_PATH,
+            'modelo': MODELO_SAIDA_OLIST_PATH
+        }
         
+        for file_type, path in required_files.items():
+            if not os.path.exists(path):
+                return jsonify({
+                    'error': f'Arquivo de {file_type} não encontrado.',
+                    'details': {'path': path}
+                }), 500
+
+        # Verificar estrutura do arquivo de clientes
+        df_clientes_check = pd.read_excel(CLIENTES_PATH, sheet_name='CLIENTES')
+        if df_clientes_check.empty:
+            return jsonify({'error': 'Arquivo de clientes está vazio.'}), 500
+        
+        if 'ID' not in df_clientes_check.columns:
+            return jsonify({'error': 'Coluna ID não encontrada no arquivo de clientes.'}), 500
+
+        # Converter ID do cliente
         try:
-            file.save(temp_orcamento_path)
-            app.logger.info(f"Arquivo temporário salvo em: {temp_orcamento_path}")
-            
-            # Verificar arquivos de mapeamento
-            if not os.path.exists(CLIENTES_PATH):
-                remove_file_with_retry(temp_orcamento_path)
-                return jsonify({'error': 'Arquivo de mapeamento de clientes (clientes.xlsx) não encontrado. Faça o upload primeiro.'}), 500
-            if not os.path.exists(MAPEAMENTO_PRODUTOS_PATH):
-                remove_file_with_retry(temp_orcamento_path)
-                return jsonify({'error': 'Arquivo de mapeamento de produtos (PLanilha mapeamento Orçamento Olist.xlsx) não encontrado. Faça o upload primeiro.'}), 500
-            if not os.path.exists(MODELO_SAIDA_OLIST_PATH):
-                remove_file_with_retry(temp_orcamento_path)
-                return jsonify({'error': 'Arquivo modelo de saída (formato Olist(SAIDA).xlsx) não encontrado.'}), 500
+            cliente_id_convertido = int(cliente_id_str) if pd.api.types.is_numeric_dtype(df_clientes_check['ID']) else str(cliente_id_str)
+        except ValueError:
+            return jsonify({'error': 'ID do cliente inválido.'}), 400
 
-            df_clientes_check = pd.read_excel(CLIENTES_PATH, sheet_name='CLIENTES')
-            if df_clientes_check.empty:
-                remove_file_with_retry(temp_orcamento_path)
-                return jsonify({'error': 'Arquivo de clientes está vazio.'}), 500
-            
-            if 'ID' not in df_clientes_check.columns:
-                remove_file_with_retry(temp_orcamento_path)
-                return jsonify({'error': 'Coluna ID não encontrada no arquivo de clientes.'}), 500
+        app.logger.info(f"Iniciando conversão para cliente ID: {cliente_id_convertido}")
+        
+        # Processar arquivo
+        df_convertido = converter_orcamento_para_olist(
+            input_excel,
+            MAPEAMENTO_PRODUTOS_PATH,
+            CLIENTES_PATH,
+            cliente_id_convertido,
+            MODELO_SAIDA_OLIST_PATH
+        )
 
-            # Converter ID do cliente para o tipo correto
-            if pd.api.types.is_numeric_dtype(df_clientes_check['ID']):
-                try:
-                    cliente_id_convertido = int(cliente_id_str)
-                except ValueError:
-                    try:
-                        cliente_id_convertido = float(cliente_id_str)
-                    except ValueError:
-                        remove_file_with_retry(temp_orcamento_path)
-                        return jsonify({'error': 'ID do cliente inválido. Deve ser um número.'}), 400
-            else:
-                cliente_id_convertido = str(cliente_id_str)
+        if df_convertido.empty:
+            return jsonify({'error': 'Nenhum dado foi processado.'}), 500
 
-            app.logger.info(f"Iniciando conversão para cliente ID: {cliente_id_convertido}")
-            
-            # Usar context manager para garantir que os arquivos Excel sejam fechados
-            with pd.ExcelFile(temp_orcamento_path) as xls:
-                df_convertido = converter_orcamento_para_olist(
-                    temp_orcamento_path, 
-                    MAPEAMENTO_PRODUTOS_PATH, 
-                    CLIENTES_PATH, 
-                    cliente_id_convertido, 
-                    MODELO_SAIDA_OLIST_PATH
-                )
-            
-            # Tentar remover o arquivo temporário com retry
-            if not remove_file_with_retry(temp_orcamento_path):
-                app.logger.warning(f"Não foi possível remover o arquivo temporário: {temp_orcamento_path}")
+        # Criar arquivo de saída em memória
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df_convertido.to_excel(writer, index=False, sheet_name='Sheet1')
+        output.seek(0)
+        
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name='orcamento_convertido_olist.xlsx'
+        )
 
-            if df_convertido.empty:
-                return jsonify({'error': 'Nenhum dado foi processado. Verifique se o arquivo de orçamento está no formato correto.'}), 500
-
-            # Criar o arquivo de saída em memória
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df_convertido.to_excel(writer, index=False, sheet_name='Sheet1')
-            output.seek(0)
-            
-            return send_file(
-                output, 
-                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                as_attachment=True, 
-                download_name='orcamento_convertido_olist.xlsx'
-            )
-
-        except FileNotFoundError as e_fnf:
-            app.logger.error(f"Arquivo não encontrado: {str(e_fnf)}\n{traceback.format_exc()}")
-            if temp_orcamento_path:
-                remove_file_with_retry(temp_orcamento_path)
-            return jsonify({'error': f'Arquivo não encontrado: {str(e_fnf)}'}), 500
-        except Exception as e_proc:
-            app.logger.error(f"Erro durante o processamento: {str(e_proc)}\n{traceback.format_exc()}")
-            if temp_orcamento_path:
-                remove_file_with_retry(temp_orcamento_path)
-            return jsonify({'error': f'Erro durante o processamento: {str(e_proc)}'}), 500
     except Exception as e:
-        app.logger.error(f"Erro inesperado: {str(e)}\n{traceback.format_exc()}")
-        if temp_orcamento_path and os.path.exists(temp_orcamento_path):
-            remove_file_with_retry(temp_orcamento_path)
-        return jsonify({'error': f'Erro inesperado: {str(e)}'}), 500
+        app.logger.error(f"Erro no processamento: {str(e)}\n{traceback.format_exc()}")
+        return jsonify({
+            'error': 'Erro no processamento do arquivo.',
+            'details': {
+                'message': str(e),
+                'traceback': traceback.format_exc()
+            }
+        }), 500
 
 @app.route('/upload_mapeamento', methods=['POST'])
 def upload_mapeamento():
-    file_type = request.form.get('file_type') # 'clientes' ou 'produtos'
-    
-    if not file_type:
-        return jsonify({'error': 'Tipo de arquivo de mapeamento não especificado.'}), 400
-
     if 'file' not in request.files:
         return jsonify({'error': 'Nenhum arquivo enviado.'}), 400
+        
+    file_type = request.form.get('file_type')
+    if not file_type:
+        return jsonify({'error': 'Tipo de arquivo de mapeamento não especificado.'}), 400
 
     file = request.files['file']
 
@@ -227,12 +205,23 @@ def upload_mapeamento():
 
 @app.errorhandler(500)
 def internal_error(error):
-    return jsonify({'error': 'Erro interno do servidor. Verifique os logs para mais detalhes.'}), 500
+    app.logger.error(f"Erro interno do servidor: {str(error)}\n{traceback.format_exc()}")
+    return jsonify({
+        'error': 'Erro interno do servidor',
+        'details': {
+            'message': str(error),
+            'traceback': traceback.format_exc()
+        }
+    }), 500
 
 @app.errorhandler(404)
 def not_found_error(error):
-    return jsonify({'error': 'Página não encontrada.'}), 404
+    return jsonify({
+        'error': 'Recurso não encontrado',
+        'details': {'message': str(error)}
+    }), 404
 
+# Para desenvolvimento local
 if __name__ == '__main__':
     import logging
     import tempfile
@@ -245,6 +234,6 @@ if __name__ == '__main__':
     app.logger.info('Iniciando aplicação...')
     app.run(host='0.0.0.0', port=5000, debug=True)
 
-# Adicionar esta linha para a Vercel
+# Para Vercel - necessário para serverless
 app = app
 
