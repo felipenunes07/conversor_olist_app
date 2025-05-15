@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversor Sistema Olist</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Conversor Sistema Olist</h1>
+            <p>Converta seus pedidos para o formato aceito pelo sistema Olist</p>
+        </header>
+
+        <main>
+            <div class="input-section">
+                <div class="form-group">
+                    <label for="cliente-select">Selecione o Cliente</label>
+                    <select id="cliente-select" name="cliente">
+                        <option value="">Selecione um cliente...</option>
+                        <!-- Opções de cliente serão carregadas aqui -->
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Pedido de Entrada</label>
+                    <div id="upload-area" class="upload-area">
+                        <p class="upload-area-text">Arraste e solte um arquivo Excel aqui ou</p>
+                        <button type="button" id="usar-arquivo-excel-btn" class="excel-btn">Clique para selecionar um arquivo</button>
+                        <input type="file" id="arquivo-excel-input" accept=".xlsx, .xls" style="display: none;">
+                         <p id="file-name-display" class="file-name-display"></p> <!-- Para mostrar o nome do arquivo -->
+                    </div>
+                    <button type="submit" id="processar-btn" class="processar-btn">Processar Pedido</button>
+                </div>
+            </div>
+
+            <div class="output-section">
+                <label>Pré-visualização / Resultado</label>
+                <div id="preview-area" class="preview-area">
+                    <div class="placeholder">
+                        <span>!</span>
+                        <p>Faça o upload de um arquivo Excel e selecione um cliente para visualizar a conversão</p>
+                    </div>
+                    <!-- O link para download aparecerá aqui -->
+                </div>
+            </div>
+        </main>
+
+        <section class="mapping-upload-section">
+            <hr style="margin: 40px 0; border-color: #e9ecef;">
+            <header>
+                <h2>Atualizar Arquivos de Mapeamento</h2>
+                <p>Faça o upload dos arquivos atualizados de clientes e produtos.</p>
+            </header>
+            <div class="mapping-form-container">
+                <div class="form-group">
+                    <label for="clientes-file-input">Arquivo de Clientes (clientes.xlsx)</label>
+                    <input type="file" id="clientes-file-input" class="mapping-file-input" accept=".xlsx">
+                    <p id="clientes-file-name-display" class="file-name-display"></p>
+                </div>
+                <div class="form-group">
+                    <label for="produtos-file-input">Planilha de Mapeamento de Produtos (PLanilha mapeamento Orçamento Olist.xlsx)</label>
+                    <input type="file" id="produtos-file-input" class="mapping-file-input" accept=".xlsx">
+                    <p id="produtos-file-name-display" class="file-name-display"></p>
+                </div>
+                <button type="button" id="salvar-mapeamento-btn" class="processar-btn">Salvar Arquivos de Mapeamento</button>
+                <div id="mapping-upload-status" style="margin-top: 15px;"></div>
+            </div>
+        </section>
+
+    </div>
+
+    <script src="/static/js/script.js"></script>
+</body>
+</html>
+

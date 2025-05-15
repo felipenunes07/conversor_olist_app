@@ -1,0 +1,254 @@
+/* Reset básico e configurações globais */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    background-color: #f8f9fa; /* Um cinza bem claro para o fundo */
+    color: #343a40; /* Cor de texto principal (escuro) */
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    padding: 40px 20px; /* Mais padding no body */
+    box-sizing: border-box;
+}
+
+.container {
+    background-color: #ffffff; /* Fundo branco para o conteúdo principal */
+    padding: 40px;
+    border-radius: 12px; /* Cantos mais arredondados */
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08); /* Sombra mais suave e moderna */
+    width: 100%;
+    max-width: 1100px;
+}
+
+/* Cabeçalho */
+header {
+    text-align: center;
+    margin-bottom: 40px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #e9ecef; /* Linha divisória sutil */
+}
+
+header h1 {
+    font-size: 2.2em; /* Tamanho do título principal */
+    color: #212529; /* Cor escura para o título */
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+header p {
+    font-size: 1.1em;
+    color: #6c757d; /* Cinza para o subtítulo */
+    line-height: 1.6;
+}
+
+/* Layout principal */
+main {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* Duas colunas de tamanho igual */
+    gap: 40px; /* Espaçamento maior entre as colunas */
+}
+
+.input-section,
+.output-section {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Grupos de formulário e labels */
+.form-group {
+    margin-bottom: 25px;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 500; /* Peso da fonte para labels */
+    margin-bottom: 10px;
+    color: #495057; /* Cor para labels */
+    font-size: 0.95em;
+}
+
+/* Estilização de inputs, select, textarea */
+select,
+input[type="file"] /* Mantido para o input oculto, mas o botão será o principal */
+{
+    width: 100%;
+    padding: 12px 15px;
+    border: 1px solid #ced4da; /* Borda sutil */
+    border-radius: 8px; /* Cantos arredondados */
+    box-sizing: border-box;
+    font-size: 1em;
+    background-color: #fff;
+    color: #495057;
+    transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+select:focus,
+input[type="file"]:focus {
+    border-color: #80bdff; /* Cor da borda ao focar */
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25); /* Sombra ao focar */
+}
+
+/* Estilo específico para o select (seta) */
+select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 15px center;
+    background-size: 16px 12px;
+}
+
+/* Área de Upload */
+.upload-area {
+    border: 2px dashed #adb5bd; /* Borda tracejada mais sutil */
+    border-radius: 8px;
+    padding: 30px;
+    text-align: center;
+    margin-bottom: 20px;
+    background-color: #f8f9fa; /* Fundo levemente diferente para a área de upload */
+    transition: border-color 0.2s ease-in-out;
+}
+
+.upload-area.dragover {
+    border-color: #007bff; /* Cor ao arrastar arquivo sobre */
+    background-color: #e9ecef;
+}
+
+.upload-area-text {
+    color: #6c757d;
+    margin-bottom: 15px;
+    font-size: 0.95em;
+}
+
+.file-name-display {
+    margin-top: 10px;
+    font-size: 0.9em;
+    color: #495057;
+    word-break: break-all;
+}
+
+/* Botões */
+.excel-btn, /* Botão de clique para selecionar arquivo */
+.processar-btn {
+    background-color: #007bff; /* Azul primário */
+    color: white;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: 500;
+    width: 100%;
+    transition: background-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    text-align: center;
+}
+
+.excel-btn {
+    background-color: #6c757d; /* Cinza para o botão de upload alternativo */
+}
+
+.excel-btn:hover {
+    background-color: #5a6268;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.processar-btn {
+    background-color: #343a40; /* Cor escura para o botão principal, como na referência */
+    margin-top: 10px; /* Espaçamento se houver outros elementos acima */
+}
+
+.processar-btn:hover {
+    background-color: #23272b; /* Mais escuro no hover */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* Área de Pré-visualização/Resultado */
+.preview-area {
+    border: 1px solid #e9ecef; /* Borda sutil */
+    border-radius: 8px;
+    min-height: 200px; /* Ajuste de altura se necessário */
+    padding: 30px;
+    display: flex;
+    flex-direction: column; /* Para alinhar o link de download abaixo do texto */
+    justify-content: center;
+    align-items: center;
+    background-color: #f8f9fa; /* Fundo sutil */
+    text-align: center;
+}
+
+.preview-area .placeholder span {
+    font-size: 3.5em; /* Ícone maior */
+    color: #adb5bd; /* Cor do ícone placeholder */
+    display: block;
+    margin-bottom: 15px;
+    /* Para um ícone de arquivo com exclamação (SVG simples) */
+    width: 60px;
+    height: 70px;
+    line-height: 70px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='70' viewBox='0 0 24 28'%3E%3Cpath fill='%23adb5bd' d='M14 2H6C4.9 2 4 2.9 4 4v20c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zM12 18c.6 0 1-.4 1-1v-4c0-.6-.4-1-1-1s-1 .4-1 1v4c0 .6.4 1 1 1zm0 3c.6 0 1-.4 1-1s-.4-1-1-1-1 .4-1 1 .4 1 1 1z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: center;
+    margin-left: auto;
+    margin-right: auto;
+    border: none; /* Remover borda do span se não for um texto */
+    border-radius: 0;
+}
+
+.preview-area .placeholder p {
+    color: #6c757d;
+    font-size: 1em;
+    line-height: 1.6;
+}
+
+/* Link de Download */
+#download-link p {
+    margin-bottom: 10px;
+}
+
+#download-link a {
+    display: inline-block;
+    background-color: #28a745; /* Verde para sucesso/download */
+    color: white;
+    padding: 10px 20px;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 500;
+    transition: background-color 0.2s ease-in-out;
+}
+
+#download-link a:hover {
+    background-color: #218838; /* Verde mais escuro no hover */
+}
+
+/* Responsividade */
+@media (max-width: 992px) { /* Ajuste do breakpoint */
+    main {
+        grid-template-columns: 1fr; /* Uma coluna em telas menores */
+    }
+    .container {
+        padding: 30px;
+    }
+}
+
+@media (max-width: 576px) {
+    body {
+        padding: 20px 10px;
+    }
+    .container {
+        padding: 20px;
+    }
+    header h1 {
+        font-size: 1.8em;
+    }
+    header p {
+        font-size: 1em;
+    }
+    .upload-area,
+    .preview-area {
+        padding: 20px;
+    }
+}
+
