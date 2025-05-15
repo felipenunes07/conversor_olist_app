@@ -245,3 +245,6 @@ if __name__ == '__main__':
     app.logger.info('Iniciando aplicação...')
     app.run(host='0.0.0.0', port=5000, debug=True)
 
+# Adicionar esta linha para a Vercel
+app = app
+
