@@ -2,6 +2,7 @@ import pandas as pd
 import sys
 import traceback
 import re # Para normalização
+import os
 
 def normalizar_texto(texto):
     if pd.isna(texto):
@@ -23,88 +24,103 @@ def converter_orcamento_para_olist(caminho_orcamento_entrada, caminho_mapeamento
     df_modelo_saida_temp = None
     colunas_modelo_olist = []
     produtos_nao_mapeados_log = [] # Lista para logar produtos não mapeados
+    
+    # Verificar se os arquivos existem antes de tentar abri-los
+    for arquivo, descricao in [
+        (caminho_orcamento_entrada, "orçamento"),
+        (caminho_mapeamento_produtos, "mapeamento de produtos"),
+        (caminho_clientes, "clientes"),
+        (caminho_modelo_saida_olist_com_dados, "modelo de saída")
+    ]:
+        if not os.path.exists(arquivo):
+            erro_msg = f"Arquivo de {descricao} não encontrado: {arquivo}"
+            print(f"[CONVERSOR V6] ERRO: {erro_msg}", file=sys.stderr)
+            raise FileNotFoundError(erro_msg)
+
     print(f"[CONVERSOR V6] Iniciando conversão. Cliente ID: {id_cliente_selecionado}", file=sys.stderr)
     try:
         print(f"[CONVERSOR V6] Lendo arquivo de mapeamento: {caminho_mapeamento_produtos}", file=sys.stderr)
-        df_mapeamento = pd.read_excel(caminho_mapeamento_produtos, sheet_name='CATÁLOGO')
+        with pd.ExcelFile(caminho_mapeamento_produtos) as xls_map:
+            df_mapeamento = pd.read_excel(xls_map, sheet_name='CATÁLOGO')
+        
         # Normalizar a coluna de busca no mapeamento
         if 'MODELO' in df_mapeamento.columns:
             df_mapeamento['MODELO_NORMALIZADO_BUSCA'] = df_mapeamento['MODELO'].apply(normalizar_texto)
             print(f"[CONVERSOR V6] Coluna 'MODELO' normalizada para busca em df_mapeamento.", file=sys.stderr)
         else:
             print(f"[CONVERSOR V6] ERRO: Coluna 'MODELO' não encontrada em {caminho_mapeamento_produtos}", file=sys.stderr)
-            # Tratar erro ou retornar, pois o mapeamento será impossível
             return pd.DataFrame(columns=colunas_modelo_olist if colunas_modelo_olist else [])
 
         print(f"[CONVERSOR V6] Lendo arquivo de clientes: {caminho_clientes}", file=sys.stderr)
-        df_clientes = pd.read_excel(caminho_clientes, sheet_name='CLIENTES')
+        with pd.ExcelFile(caminho_clientes) as xls_cli:
+            df_clientes = pd.read_excel(xls_cli, sheet_name='CLIENTES')
         
         print(f"[CONVERSOR V6] Lendo NOVO arquivo modelo de saída com dados: {caminho_modelo_saida_olist_com_dados}", file=sys.stderr)
-        xls_modelo_novo = pd.ExcelFile(caminho_modelo_saida_olist_com_dados)
-        if xls_modelo_novo.sheet_names:
-            df_modelo_saida_temp = pd.read_excel(xls_modelo_novo, sheet_name=0)
-            print(f"[CONVERSOR V6] Lida a primeira aba do NOVO modelo de saída: {xls_modelo_novo.sheet_names[0]}", file=sys.stderr)
-        else:
-            raise ValueError("O NOVO arquivo Excel modelo de saída não contém nenhuma aba.")
-        colunas_modelo_olist = df_modelo_saida_temp.columns.tolist()
-        print(f"[CONVERSOR V6] Colunas do NOVO modelo Olist: {colunas_modelo_olist}", file=sys.stderr)
+        with pd.ExcelFile(caminho_modelo_saida_olist_com_dados) as xls_modelo_novo:
+            if xls_modelo_novo.sheet_names:
+                df_modelo_saida_temp = pd.read_excel(xls_modelo_novo, sheet_name=0)
+                print(f"[CONVERSOR V6] Lida a primeira aba do NOVO modelo de saída: {xls_modelo_novo.sheet_names[0]}", file=sys.stderr)
+            else:
+                raise ValueError("O NOVO arquivo Excel modelo de saída não contém nenhuma aba.")
+            colunas_modelo_olist = df_modelo_saida_temp.columns.tolist()
+            print(f"[CONVERSOR V6] Colunas do NOVO modelo Olist: {colunas_modelo_olist}", file=sys.stderr)
 
         print(f"[CONVERSOR V6] Lendo arquivo de orçamento: {caminho_orcamento_entrada}", file=sys.stderr)
-        xls_orc = pd.ExcelFile(caminho_orcamento_entrada)
-        sheet_name_orcamento = None
-        if 'Orçamento' in xls_orc.sheet_names:
-            sheet_name_orcamento = 'Orçamento'
-        elif xls_orc.sheet_names:
-            sheet_name_orcamento = xls_orc.sheet_names[0]
-            print(f"[CONVERSOR V6] Aviso: Aba 'Orçamento' não encontrada. Usando primeira aba: {sheet_name_orcamento}", file=sys.stderr)
-        else:
-            raise ValueError("O arquivo Excel de orçamento não contém nenhuma aba.")
-
-        df_orc_preview_meta = pd.read_excel(xls_orc, sheet_name=sheet_name_orcamento, nrows=10, header=None) # Ler mais linhas para encontrar cabeçalho
-        num_proposta_orc = None
-        data_proposta_orc = None
-        linha_cabecalho_itens_idx = None
-
-        if len(df_orc_preview_meta) > 0:
-            if len(df_orc_preview_meta.columns) > 1:
-                # Busca 'Orçamento #' e 'Data' nas primeiras linhas
-                for i in range(len(df_orc_preview_meta)):
-                    if normalizar_texto(df_orc_preview_meta.iloc[i, 0]) == "orçamento #":
-                        num_proposta_orc = df_orc_preview_meta.iloc[i, 1]
-                        print(f"[CONVERSOR V6] Número da proposta extraído (linha {i}): {num_proposta_orc}", file=sys.stderr)
-                    if normalizar_texto(df_orc_preview_meta.iloc[i, 0]) == "data":
-                        data_proposta_orc = df_orc_preview_meta.iloc[i, 1]
-                        if isinstance(data_proposta_orc, pd.Timestamp):
-                            data_proposta_orc = data_proposta_orc.date()
-                        elif isinstance(data_proposta_orc, str):
-                            try: data_proposta_orc = pd.to_datetime(data_proposta_orc, dayfirst=True).date()
-                            except ValueError: 
-                                try: data_proposta_orc = pd.to_datetime(data_proposta_orc).date()
-                                except ValueError: pass # Deixar como string se não puder converter
-                        print(f"[CONVERSOR V6] Data da proposta extraída (linha {i}): {data_proposta_orc}", file=sys.stderr)
-            
-            palavras_chave_cabecalho_itens = ["Produto", "Cor", "Qualidade", "Valor Unitário", "Quantidade", "Subtotal"]
-            linha_cabecalho_itens_idx = encontrar_linha_cabecalho(df_orc_preview_meta, palavras_chave_cabecalho_itens)
-            
-            if linha_cabecalho_itens_idx is not None:
-                print(f"[CONVERSOR V6] Linha de cabeçalho dos itens identificada no índice: {linha_cabecalho_itens_idx}", file=sys.stderr)
-                # header é o índice da linha a ser usada como cabeçalho
-                df_orcamento_itens = pd.read_excel(xls_orc, sheet_name=sheet_name_orcamento, header=linha_cabecalho_itens_idx)
-                # Remover linhas acima do cabeçalho que foram lidas junto (se header > 0)
-                # Se header=0, não há linhas acima. Se header=2, iloc[1:] remove a linha 0 e 1 (relativo ao novo cabeçalho)
-                # A linha do cabeçalho se torna a linha 0 do novo DataFrame, então não precisamos mais pular
-                # df_orcamento_itens = df_orcamento_itens.iloc[1:].reset_index(drop=True) # Esta linha estava incorreta
+        with pd.ExcelFile(caminho_orcamento_entrada) as xls_orc:
+            sheet_name_orcamento = None
+            if 'Orçamento' in xls_orc.sheet_names:
+                sheet_name_orcamento = 'Orçamento'
+            elif xls_orc.sheet_names:
+                sheet_name_orcamento = xls_orc.sheet_names[0]
+                print(f"[CONVERSOR V6] Aviso: Aba 'Orçamento' não encontrada. Usando primeira aba: {sheet_name_orcamento}", file=sys.stderr)
             else:
-                print("[CONVERSOR V6] Aviso: Cabeçalho dos itens não identificado. Tentando leitura padrão com skiprows=2.", file=sys.stderr)
-                df_orcamento_itens = pd.read_excel(xls_orc, sheet_name=sheet_name_orcamento, skiprows=2)
-        else:
-            print("[CONVERSOR V6] Aviso: Não foi possível ler metadados ou cabeçalho do orçamento.", file=sys.stderr)
-            df_orcamento_itens = pd.DataFrame()
+                raise ValueError("O arquivo Excel de orçamento não contém nenhuma aba.")
 
-        print(f"[CONVERSOR V6] Itens do orçamento lidos. Colunas: {list(df_orcamento_itens.columns)}", file=sys.stderr)
-        # Normalizar nomes das colunas do orçamento lido
-        df_orcamento_itens.columns = [normalizar_texto(col) for col in df_orcamento_itens.columns]
-        print(f"[CONVERSOR V6] Colunas NORMALIZADAS dos itens do orçamento: {list(df_orcamento_itens.columns)}", file=sys.stderr)
+            df_orc_preview_meta = pd.read_excel(xls_orc, sheet_name=sheet_name_orcamento, nrows=10, header=None)
+            num_proposta_orc = None
+            data_proposta_orc = None
+            linha_cabecalho_itens_idx = None
+
+            if len(df_orc_preview_meta) > 0:
+                if len(df_orc_preview_meta.columns) > 1:
+                    # Busca 'Orçamento #' e 'Data' nas primeiras linhas
+                    for i in range(len(df_orc_preview_meta)):
+                        if normalizar_texto(df_orc_preview_meta.iloc[i, 0]) == "orçamento #":
+                            num_proposta_orc = df_orc_preview_meta.iloc[i, 1]
+                            print(f"[CONVERSOR V6] Número da proposta extraído (linha {i}): {num_proposta_orc}", file=sys.stderr)
+                        if normalizar_texto(df_orc_preview_meta.iloc[i, 0]) == "data":
+                            data_proposta_orc = df_orc_preview_meta.iloc[i, 1]
+                            if isinstance(data_proposta_orc, pd.Timestamp):
+                                data_proposta_orc = data_proposta_orc.date()
+                            elif isinstance(data_proposta_orc, str):
+                                try: data_proposta_orc = pd.to_datetime(data_proposta_orc, dayfirst=True).date()
+                                except ValueError: 
+                                    try: data_proposta_orc = pd.to_datetime(data_proposta_orc).date()
+                                    except ValueError: pass # Deixar como string se não puder converter
+                            print(f"[CONVERSOR V6] Data da proposta extraída (linha {i}): {data_proposta_orc}", file=sys.stderr)
+                
+                palavras_chave_cabecalho_itens = ["Produto", "Cor", "Qualidade", "Valor Unitário", "Quantidade", "Subtotal"]
+                linha_cabecalho_itens_idx = encontrar_linha_cabecalho(df_orc_preview_meta, palavras_chave_cabecalho_itens)
+                
+                if linha_cabecalho_itens_idx is not None:
+                    print(f"[CONVERSOR V6] Linha de cabeçalho dos itens identificada no índice: {linha_cabecalho_itens_idx}", file=sys.stderr)
+                    # header é o índice da linha a ser usada como cabeçalho
+                    df_orcamento_itens = pd.read_excel(xls_orc, sheet_name=sheet_name_orcamento, header=linha_cabecalho_itens_idx)
+                    # Remover linhas acima do cabeçalho que foram lidas junto (se header > 0)
+                    # Se header=0, não há linhas acima. Se header=2, iloc[1:] remove a linha 0 e 1 (relativo ao novo cabeçalho)
+                    # A linha do cabeçalho se torna a linha 0 do novo DataFrame, então não precisamos mais pular
+                    # df_orcamento_itens = df_orcamento_itens.iloc[1:].reset_index(drop=True) # Esta linha estava incorreta
+                else:
+                    print("[CONVERSOR V6] Aviso: Cabeçalho dos itens não identificado. Tentando leitura padrão com skiprows=2.", file=sys.stderr)
+                    df_orcamento_itens = pd.read_excel(xls_orc, sheet_name=sheet_name_orcamento, skiprows=2)
+            else:
+                print("[CONVERSOR V6] Aviso: Não foi possível ler metadados ou cabeçalho do orçamento.", file=sys.stderr)
+                df_orcamento_itens = pd.DataFrame()
+
+            print(f"[CONVERSOR V6] Itens do orçamento lidos. Colunas: {list(df_orcamento_itens.columns)}", file=sys.stderr)
+            # Normalizar nomes das colunas do orçamento lido
+            df_orcamento_itens.columns = [normalizar_texto(col) for col in df_orcamento_itens.columns]
+            print(f"[CONVERSOR V6] Colunas NORMALIZADAS dos itens do orçamento: {list(df_orcamento_itens.columns)}", file=sys.stderr)
 
     except FileNotFoundError as e:
         print(f"[CONVERSOR V6] Erro Crítico: Arquivo essencial não encontrado: {e.filename}\n{traceback.format_exc()}", file=sys.stderr)
