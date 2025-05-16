@@ -8,6 +8,10 @@ import tempfile
 # Adiciona o diretório pai de 'src' ao sys.path para permitir importações como 'from src.conversor_olist import ...'
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
+# ===== INÍCIO DIAGNÓSTICO =====
+print("Diretório atual:", os.getcwd())
+# ===== FIM DIAGNÓSTICO =====
+
 from flask import Flask, request, jsonify, send_file, render_template
 import pandas as pd
 import io # Para enviar o arquivo em memória
@@ -30,6 +34,14 @@ MAPEAMENTO_PRODUTOS_PATH = os.path.join(DATA_DIR, MAPEAMENTO_PRODUTOS_FILENAME)
 CLIENTES_PATH = os.path.join(DATA_DIR, CLIENTES_FILENAME)
 MODELO_SAIDA_OLIST_PATH = os.path.join(DATA_DIR, MODELO_SAIDA_OLIST_FILENAME)
 
+# ===== INÍCIO DIAGNÓSTICO =====
+print("Caminhos dos arquivos:")
+print(f"MAPEAMENTO_PRODUTOS_PATH: {MAPEAMENTO_PRODUTOS_PATH} (Existe: {os.path.exists(MAPEAMENTO_PRODUTOS_PATH)})")
+print(f"CLIENTES_PATH: {CLIENTES_PATH} (Existe: {os.path.exists(CLIENTES_PATH)})")
+print(f"MODELO_SAIDA_OLIST_PATH: {MODELO_SAIDA_OLIST_PATH} (Existe: {os.path.exists(MODELO_SAIDA_OLIST_PATH)})")
+print(f"Arquivos em {DATA_DIR} (Existe: {os.path.exists(DATA_DIR)}):", os.listdir(DATA_DIR) if os.path.exists(DATA_DIR) else "Pasta não existe")
+# ===== FIM DIAGNÓSTICO =====
+
 # Criar diretório de uploads se não existir
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -42,6 +54,10 @@ def allowed_file(filename):
 
 def check_required_files():
     """Check if all required files exist and are readable."""
+    # Certifique-se de que o diretório DATA_DIR existe
+    os.makedirs(DATA_DIR, exist_ok=True)
+    print(f"[CHECK] Verificando diretório de dados: {DATA_DIR} (Existe: {os.path.exists(DATA_DIR)})")
+    
     required_files = {
         'clientes': CLIENTES_PATH,
         'mapeamento': MAPEAMENTO_PRODUTOS_PATH,
@@ -53,6 +69,9 @@ def check_required_files():
         if not os.path.exists(path):
             missing_files.append(file_type)
             app.logger.error(f"Required file missing: {path}")
+            print(f"[CHECK] Arquivo ausente: {path}")
+        else:
+            print(f"[CHECK] Arquivo encontrado: {path}")
     
     return missing_files
 

@@ -46,13 +46,26 @@ def converter_orcamento_para_olist(
     colunas_modelo_olist = []
     produtos_nao_mapeados_log = [] # Lista para logar produtos não mapeados
     
+    # Adicionar diagnóstico para verificar os arquivos
+    print(f"[DIAGNÓSTICO] Verificando existência dos arquivos:")
+    print(f"[DIAGNÓSTICO] Tipo arquivo_orcamento: {type(arquivo_orcamento)}")
+    print(f"[DIAGNÓSTICO] caminho_mapeamento_produtos: {caminho_mapeamento_produtos} (Existe: {os.path.exists(caminho_mapeamento_produtos)})")
+    print(f"[DIAGNÓSTICO] caminho_clientes: {caminho_clientes} (Existe: {os.path.exists(caminho_clientes)})")
+    print(f"[DIAGNÓSTICO] caminho_modelo_saida_olist_com_dados: {caminho_modelo_saida_olist_com_dados} (Existe: {os.path.exists(caminho_modelo_saida_olist_com_dados)})")
+    
     # Verificar se os arquivos existem antes de tentar abri-los
-    for arquivo, descricao in [
-        (caminho_orcamento, "orçamento"),
+    # Não verificamos arquivo_orcamento quando é BytesIO
+    arquivos_para_verificar = []
+    if isinstance(arquivo_orcamento, str):
+        arquivos_para_verificar.append((arquivo_orcamento, "orçamento"))
+    
+    arquivos_para_verificar.extend([
         (caminho_mapeamento_produtos, "mapeamento de produtos"),
         (caminho_clientes, "clientes"),
         (caminho_modelo_saida_olist_com_dados, "modelo de saída")
-    ]:
+    ])
+    
+    for arquivo, descricao in arquivos_para_verificar:
         if not os.path.exists(arquivo):
             erro_msg = f"Arquivo de {descricao} não encontrado: {arquivo}"
             print(f"[CONVERSOR V6] ERRO: {erro_msg}", file=sys.stderr)
